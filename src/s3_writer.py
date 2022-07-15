@@ -20,7 +20,7 @@ AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
 WORKERS = "workers"
 OUTPUT_DIR = "s3_test/"
-INPUT_DIR = "/Users/dominik/projects/kds-team.wr-hlidac-shopu-s3/data/out/files/"
+INPUT_DIR = "/data/out/files/"
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
@@ -71,9 +71,10 @@ class Component(ComponentBase):
         if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
             logging.info("Connection successful.")
         else:
-            logging.error("Connection failed")
+            raise ConnectionError("Connection failed")
 
-        self.local_paths, self.target_paths = self.prepare_lists_of_files(INPUT_DIR, OUTPUT_DIR)
+        data_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data/out/files/")
+        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, OUTPUT_DIR)
 
         self.process_upload()
 
@@ -160,12 +161,10 @@ class Component(ComponentBase):
         """
 
         _local_paths, _target_paths = [], []
-        cwd = os.getcwd()
-        local_path = os.path.join(cwd.replace("src", ""), "data/out/files")
         for root, dirs, files in os.walk(in_dir):
             for name in files:
                 _local_paths.append(os.path.join(root, name))
-                _target_paths.append(out_dir + os.path.join(root, name).replace(local_path, "")[1:])
+                _target_paths.append(out_dir + os.path.join(root, name).replace(in_dir, "")[1:])
 
         return _local_paths, _target_paths
 
