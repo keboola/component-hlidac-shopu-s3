@@ -1,0 +1,12 @@
+{"columns":[
+"shop_id",
+"slug",
+"itemUrl",
+"parsedUrl",
+"itemId",
+"itemName",
+"itemImage",
+"commonPrice",
+"minPrice",
+"pkey"]
+}

@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "title": "writer configuration",
+  "required": [
+    "aws_access_key_id",
+    "#aws_secret_access_key",
+    "format"
+  ],
+  "properties": {
+    "aws_access_key_id": {
+      "type": "string",
+      "title": "AWS access key"
+    },
+    "#aws_secret_access_key": {
+      "type": "string",
+      "title": "AWS secret access key"
+    },
+    "format": {
+      "type": "string",
+      "title": "Input file format"
+    },
+    "debug": {
+      "type": "boolean",
+      "title": "Debug"
+    }
+  }
+}
