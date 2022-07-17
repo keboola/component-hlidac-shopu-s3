@@ -67,16 +67,20 @@ class Component(ComponentBase):
 
         self.client = self.get_client_from_session(params)
 
-        conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
-        if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            logging.info("Connection successful.")
-        else:
+        if not self.test_connection_ok(params):
             raise ConnectionError("Connection failed")
 
         data_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data/out/files/")
         self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, OUTPUT_DIR)
 
         self.process_upload()
+
+    def test_connection_ok(self, params) -> bool:
+        conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
+        if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
+            logging.info("S3 Connection successful.")
+            return True
+        return False
 
     def process_upload(self):
         """
@@ -92,8 +96,6 @@ class Component(ComponentBase):
 
         with tqdm(desc="Uploading files to S3", total=len(self.local_paths)) as pbar:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
-                # Using a dict for preserving the downloaded file for each future, to store it as a failure if we
-                # need that
                 futures = {
                     executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
                     file_to_upload, target_path in zip(self.local_paths, self.target_paths)
@@ -133,7 +135,8 @@ class Component(ComponentBase):
         )
         return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers + 8))
 
-    def upload_one_file(self, bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
+    @staticmethod
+    def upload_one_file(bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
         """
         Download a single file from S3
         Args:
