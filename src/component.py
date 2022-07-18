@@ -25,7 +25,7 @@ AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
 WORKERS = "workers"
-S3_BUCKET_DIR = "s3_test/"
+S3_BUCKET_DIR = "aws_directory"
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
@@ -48,9 +48,10 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
+        self.aws_bucket = None
+        self.s3_bucket_dir = None
+        self.params = None
         self.client = None
-        self.failed_uploads = []
-        self.exceptions = []
         self.target_paths = None
         self.local_paths = None
         self.workers = 1
@@ -62,6 +63,9 @@ class Component(ComponentBase):
         # check for missing configuration parameters
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
         params = self.configuration.parameters
+
+        self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
+        self.aws_bucket = params.get(AWS_BUCKET)
 
         # Access parameters in data/config.json
         if params.get(KEY_FORMAT):
@@ -95,7 +99,7 @@ class Component(ComponentBase):
 
         # TODO is there a better way to get data/out/files folder?
         data_path = self.files_out_path
-        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, S3_BUCKET_DIR)
+        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, self.s3_bucket_dir)
 
         self.process_upload()
 
@@ -158,7 +162,7 @@ class Component(ComponentBase):
         """
         logging.info(f"Processing {len(self.local_paths)} files.")
 
-        func = partial(self.upload_one_file, AWS_BUCKET, self.client)
+        func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
         with tqdm(desc="Uploading files to S3", total=len(self.local_paths)) as pbar:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
@@ -168,21 +172,10 @@ class Component(ComponentBase):
                 }
                 for future in as_completed(futures):
                     if future.exception():
-                        self.failed_uploads.append(futures[future])
-                        self.exceptions.append(future.exception())
+                        logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
                     pbar.update(1)
-        if len(self.failed_uploads) > 0:
-            logging.info("Some uploads have failed.")
-            # TODO implement proper error log
-            """
-            with open(
-                    os.path.join(INPUT_DIR, "failed_uploads.csv"), "w", newline=""
-            ) as csvfile:
-                wr = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
-                wr.writerow(failed_uploads)
-            """
-        else:
-            logging.info('All files were successfully sent!')
+
+        logging.info('All files were successfully sent!')
 
     def get_client_from_session(self, params) -> boto3.Session.client:
         """

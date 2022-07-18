@@ -14,18 +14,19 @@ from functools import partial
 import botocore
 
 # configuration variables
+KEY_FORMAT = 'format'
 AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
 WORKERS = "workers"
 S3_BUCKET_DIR = "aws_directory"
-INPUT_DIR = "/data/out/files/"
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
 REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
                        AWS_ACCESS_KEY_ID,
-                       AWS_BUCKET]
+                       AWS_BUCKET,
+                       KEY_FORMAT]
 
 
 class Component(ComponentBase):
@@ -41,9 +42,10 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
+        self.aws_bucket = None
+        self.s3_bucket_dir = None
+        self.params = None
         self.client = None
-        self.failed_uploads = []
-        self.exceptions = []
         self.target_paths = None
         self.local_paths = None
         self.workers = 1
@@ -57,6 +59,8 @@ class Component(ComponentBase):
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
 
         params = self.configuration.parameters
+        self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
+        self.aws_bucket = params.get(AWS_BUCKET)
 
         if params.get(WORKERS):
             self.workers = int(params.get(WORKERS))
@@ -69,17 +73,10 @@ class Component(ComponentBase):
         if not self.test_connection_ok(params):
             raise ConnectionError("Connection failed")
 
-        data_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data/out/files/")
-        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, S3_BUCKET_DIR)
+        data_path = self.files_out_path
+        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, self.s3_bucket_dir)
 
         self.process_upload()
-
-    def test_connection_ok(self, params) -> bool:
-        conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
-        if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            logging.info("S3 Connection successful.")
-            return True
-        return False
 
     def process_upload(self):
         """
@@ -91,7 +88,7 @@ class Component(ComponentBase):
         """
         logging.info(f"Processing {len(self.local_paths)} files.")
 
-        func = partial(self.upload_one_file, AWS_BUCKET, self.client)
+        func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
         with tqdm(desc="Uploading files to S3", total=len(self.local_paths)) as pbar:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
@@ -101,21 +98,10 @@ class Component(ComponentBase):
                 }
                 for future in as_completed(futures):
                     if future.exception():
-                        self.failed_uploads.append(futures[future])
-                        self.exceptions.append(future.exception())
+                        logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
                     pbar.update(1)
-        if len(self.failed_uploads) > 0:
-            logging.info("Some uploads have failed.")
-            # TODO implement proper error log
-            """
-            with open(
-                    os.path.join(INPUT_DIR, "failed_uploads.csv"), "w", newline=""
-            ) as csvfile:
-                wr = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
-                wr.writerow(failed_uploads)
-            """
-        else:
-            logging.info('All files were successfully sent!')
+
+        logging.info('All files were successfully sent!')
 
     def get_client_from_session(self, params) -> boto3.Session.client:
         """
@@ -132,22 +118,14 @@ class Component(ComponentBase):
             aws_access_key_id=params.get(AWS_ACCESS_KEY_ID),
             aws_secret_access_key=params.get(AWS_SECRET_ACCESS_KEY)
         )
-        return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers + 8))
+        return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers*2))
 
-    @staticmethod
-    def upload_one_file(bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
-        """
-        Download a single file from S3
-        Args:
-            bucket (str): S3 bucket where images are hosted
-            target_path (str): S3 dir to store the file to
-            client (boto3.client): S3 client
-            local_file (str): S3 file name
-        """
-
-        client.upload_file(
-            local_file, bucket, target_path
-        )
+    def test_connection_ok(self, params) -> bool:
+        conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
+        if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
+            logging.info("S3 Connection successful.")
+            return True
+        return False
 
     @staticmethod
     def prepare_lists_of_files(in_dir, out_dir):
@@ -169,6 +147,21 @@ class Component(ComponentBase):
                 _target_paths.append(out_dir + os.path.join(root, name).replace(in_dir, "")[1:])
 
         return _local_paths, _target_paths
+
+    @staticmethod
+    def upload_one_file(bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
+        """
+        Download a single file from S3
+        Args:
+            bucket (str): S3 bucket where images are hosted
+            target_path (str): S3 dir to store the file to
+            client (boto3.client): S3 client
+            local_file (str): S3 file name
+        """
+
+        client.upload_file(
+            local_file, bucket, target_path
+        )
 
 
 """
