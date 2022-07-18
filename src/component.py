@@ -57,7 +57,7 @@ class Component(ComponentBase):
         self.target_paths = None
         self.local_paths = None
         self.workers = 1
-        self.chunksize = 10
+        self.chunksize = 1000
 
     def run(self):
         """

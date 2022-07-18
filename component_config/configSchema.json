@@ -29,7 +29,7 @@
       "title": "AWS directory name to store the files to, if needed."
     },
     "workers": {
-      "type": "int",
+      "type": "integer",
       "title": "Number of threads used to upload files to S3"
     }
   }
