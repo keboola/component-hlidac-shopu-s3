@@ -1,11 +1,4 @@
-"""
-Template Component main class.
-
-"""
-
 import logging
-from keboola.component.base import ComponentBase
-from keboola.component.exceptions import UserException
 import boto3
 import os
 from tqdm import tqdm
@@ -21,64 +14,27 @@ AWS_BUCKET = "aws_bucket"
 WORKERS = "workers"
 S3_BUCKET_DIR = "aws_directory"
 
-# list of mandatory parameters => if some is missing,
-# component will fail with readable message on initialization.
-REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
-                       AWS_ACCESS_KEY_ID,
-                       AWS_BUCKET,
-                       KEY_FORMAT]
 
-
-class Component(ComponentBase):
+class S3Writer:
     """
-        Extends base class for general Python components. Initializes the CommonInterface
-        and performs configuration validation.
-
-        For easier debugging the data folder is picked up by default from `../data` path,
-        relative to working directory.
-
-        If `debug` parameter is present in the `config.json`, the default logger is set to verbose DEBUG mode.
+    This class handles the logic to upload files to AWS S3.
     """
 
-    def __init__(self):
+    def __init__(self, params, data_path):
         super().__init__()
-        self.aws_bucket = None
-        self.s3_bucket_dir = None
-        self.params = None
-        self.client = None
-        self.target_paths = None
-        self.local_paths = None
-        self.workers = 1
-
-    def run(self):
-        """
-        Main execution code
-        """
-
-        # check for missing configuration parameters
-        self.validate_configuration_parameters(REQUIRED_PARAMETERS)
-
-        params = self.configuration.parameters
-        self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
         self.aws_bucket = params.get(AWS_BUCKET)
-
+        self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
+        self.params = params
+        self.data_path = data_path
         if params.get(WORKERS):
             self.workers = int(params.get(WORKERS))
             logging.info(f"Number of workers set: {self.workers}")
         else:
             logging.warning("Number of workers is not set. Using serial mode.")
-
+            self.workers = 1
         self.client = self.get_client_from_session(params)
 
-        if not self.test_connection_ok(params):
-            raise ConnectionError("Connection failed")
-
-        data_path = self.files_out_path
-        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, self.s3_bucket_dir)
-
-        self.process_upload()
-
-    def process_upload(self):
+    def process_upload(self, local_paths, target_paths):
         """
         inspired by https://emasquil.github.io/posts/multithreading-boto3/
 
@@ -86,22 +42,18 @@ class Component(ComponentBase):
 
         Returns: None
         """
-        logging.info(f"Processing {len(self.local_paths)} files.")
-
         func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
-        with tqdm(desc="Uploading files to S3", total=len(self.local_paths)) as pbar:
+        with tqdm(desc="Uploading files to S3", total=len(local_paths)) as pbar:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 futures = {
                     executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
-                    file_to_upload, target_path in zip(self.local_paths, self.target_paths)
+                    file_to_upload, target_path in zip(local_paths, target_paths)
                 }
                 for future in as_completed(futures):
                     if future.exception():
                         logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
                     pbar.update(1)
-
-        logging.info('All files were successfully sent!')
 
     def get_client_from_session(self, params) -> boto3.Session.client:
         """
@@ -118,7 +70,7 @@ class Component(ComponentBase):
             aws_access_key_id=params.get(AWS_ACCESS_KEY_ID),
             aws_secret_access_key=params.get(AWS_SECRET_ACCESS_KEY)
         )
-        return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers*2))
+        return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers + 8))
 
     def test_connection_ok(self, params) -> bool:
         conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
@@ -162,19 +114,3 @@ class Component(ComponentBase):
         client.upload_file(
             local_file, bucket, target_path
         )
-
-
-"""
-        Main entrypoint
-"""
-if __name__ == "__main__":
-    try:
-        comp = Component()
-        # this triggers the run method by default and is controlled by the configuration.action parameter
-        comp.execute_action()
-    except UserException as exc:
-        logging.exception(exc)
-        exit(1)
-    except Exception as exc:
-        logging.exception(exc)
-        exit(2)

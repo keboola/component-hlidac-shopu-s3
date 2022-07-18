@@ -7,18 +7,14 @@ import json
 import logging
 from pathlib import Path
 from typing import List
-from tqdm import tqdm
-import boto3
-import botocore
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import partial
 import shutil
 
 from csv2json.hone_csv2json import Csv2JsonConverter
 from keboola.component.base import ComponentBase
 from keboola.component.dao import TableDefinition, FileDefinition
 from keboola.component.exceptions import UserException
+from uploader.client import S3Writer
 
 # configuration variables
 KEY_FORMAT = 'format'
@@ -49,7 +45,6 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
-        self.data_path = None
         self.aws_bucket = None
         self.s3_bucket_dir = ''
         self.params = None
@@ -74,19 +69,12 @@ class Component(ComponentBase):
         if params.get(KEY_FORMAT):
             logging.info(f"Format setting is: {params.get(KEY_FORMAT)}")
 
-        if params.get(WORKERS):
-            self.workers = int(params.get(WORKERS))
-            logging.info(f"Number of workers set: {self.workers}")
-        else:
-            logging.warning("Number of workers is not set. Using serial mode.")
-
-        self.client = self.get_client_from_session(params)
-
-        if not self.test_connection_ok(params):
-            raise ConnectionError("Connection failed")
-
         input_tables = self.get_input_tables_definitions()
-        self.data_path = self.files_out_path
+
+        self.upload_processor = S3Writer(params, self.files_out_path)
+
+        if not self.upload_processor.test_connection_ok(params):
+            raise ConnectionError("Connection failed")
 
         for table in input_tables:
             _format = self.configuration.parameters[KEY_FORMAT]
@@ -114,7 +102,7 @@ class Component(ComponentBase):
             raise UserException(error)
 
     def output_folder_cleanup(self) -> None:
-        dir_to_clean = self.data_path
+        dir_to_clean = self.files_out_path
         for files in os.listdir(dir_to_clean):
             path = os.path.join(dir_to_clean, files)
             try:
@@ -143,10 +131,11 @@ class Component(ComponentBase):
                 i += 1
                 if i == self.chunksize:
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
-                    self.local_paths, self.target_paths = self.prepare_lists_of_files(self.data_path,
-                                                                                      self.s3_bucket_dir)
+                    self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
+                        self.files_out_path,
+                        self.s3_bucket_dir)
                     # SEND FILES TO TARGET DIR IN S3
-                    self.process_upload()
+                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
 
                     # DELETE OUTPUT FOLDER
                     self.output_folder_cleanup()
@@ -172,10 +161,11 @@ class Component(ComponentBase):
                 i += 1
                 if i == self.chunksize:
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
-                    self.local_paths, self.target_paths = self.prepare_lists_of_files(self.data_path,
-                                                                                      self.s3_bucket_dir)
+                    self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
+                        self.files_out_path,
+                        self.s3_bucket_dir)
                     # SEND FILES TO TARGET DIR IN S3
-                    self.process_upload()
+                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
 
                     # DELETE OUTPUT FOLDER
                     self.output_folder_cleanup()
@@ -185,89 +175,6 @@ class Component(ComponentBase):
     def _generate_metadata_content(self, columns, row: List[str]):
         converter = Csv2JsonConverter(headers=columns, delimiter='__')
         return converter.convert_row(row, [], '__', infer_undefined=True)
-
-    def process_upload(self):
-        """
-        inspired by https://emasquil.github.io/posts/multithreading-boto3/
-
-        Uploads file to S3 storage in threads with number of workers defined by WORKERS parameter.
-
-        Returns: None
-        """
-        logging.info(f"Processing upload for {len(self.local_paths)} files.")
-
-        func = partial(self.upload_one_file, self.aws_bucket, self.client)
-
-        with tqdm(desc="Uploading files to S3", total=len(self.local_paths)) as pbar:
-            with ThreadPoolExecutor(max_workers=self.workers) as executor:
-                futures = {
-                    executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
-                    file_to_upload, target_path in zip(self.local_paths, self.target_paths)
-                }
-                for future in as_completed(futures):
-                    if future.exception():
-                        logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
-                    pbar.update(1)
-
-    def get_client_from_session(self, params) -> boto3.Session.client:
-        """
-        Creates and returns boto3 client class.
-
-        Args:
-            params: Keboola json configuration parameters
-
-        Returns:
-            boto3 client class
-
-        """
-        session = boto3.Session(
-            aws_access_key_id=params.get(AWS_ACCESS_KEY_ID),
-            aws_secret_access_key=params.get(AWS_SECRET_ACCESS_KEY)
-        )
-        return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers + 8))
-
-    def test_connection_ok(self, params) -> bool:
-        conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
-        if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            logging.info("S3 Connection successful.")
-            return True
-        return False
-
-    @staticmethod
-    def prepare_lists_of_files(in_dir, out_dir):
-        """
-        Creates and populates lists with local paths to files and target paths
-
-        Returns:
-            Two lists representing files that will be sent and their destination
-
-        Args:
-            in_dir: input directory
-            out_dir: target S3 folder
-        """
-
-        _local_paths, _target_paths = [], []
-        for root, dirs, files in os.walk(in_dir):
-            for name in files:
-                _local_paths.append(os.path.join(root, name))
-                _target_paths.append(out_dir + os.path.join(root, name).replace(in_dir, "")[1:])
-
-        return _local_paths, _target_paths
-
-    @staticmethod
-    def upload_one_file(bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
-        """
-        Download a single file from S3
-        Args:
-            bucket (str): S3 bucket where images are hosted
-            target_path (str): S3 dir to store the file to
-            client (boto3.client): S3 client
-            local_file (str): S3 file name
-        """
-
-        client.upload_file(
-            local_file, bucket, target_path
-        )
 
 
 """
