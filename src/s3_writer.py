@@ -12,14 +12,13 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 import botocore
-import csv
 
 # configuration variables
 AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
 WORKERS = "workers"
-OUTPUT_DIR = "s3_test/"
+S3_BUCKET_DIR = "aws_directory"
 INPUT_DIR = "/data/out/files/"
 
 # list of mandatory parameters => if some is missing,
@@ -71,7 +70,7 @@ class Component(ComponentBase):
             raise ConnectionError("Connection failed")
 
         data_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data/out/files/")
-        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, OUTPUT_DIR)
+        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, S3_BUCKET_DIR)
 
         self.process_upload()
 
