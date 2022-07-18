@@ -13,6 +13,7 @@ import botocore
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
+import shutil
 
 from csv2json.hone_csv2json import Csv2JsonConverter
 from keboola.component.base import ComponentBase
@@ -48,13 +49,15 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
+        self.data_path = None
         self.aws_bucket = None
-        self.s3_bucket_dir = None
+        self.s3_bucket_dir = ''
         self.params = None
         self.client = None
         self.target_paths = None
         self.local_paths = None
         self.workers = 1
+        self.chunksize = 10
 
     def run(self):
         """
@@ -83,6 +86,7 @@ class Component(ComponentBase):
             raise ConnectionError("Connection failed")
 
         input_tables = self.get_input_tables_definitions()
+        self.data_path = self.files_out_path
 
         for table in input_tables:
             _format = self.configuration.parameters[KEY_FORMAT]
@@ -97,12 +101,6 @@ class Component(ComponentBase):
 
         logging.info("Parsing finished successfully!")
 
-        # TODO is there a better way to get data/out/files folder?
-        data_path = self.files_out_path
-        self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, self.s3_bucket_dir)
-
-        self.process_upload()
-
     def _validate_expected_columns(self, table_type, table: TableDefinition, expected_columns: List[str]):
         errors = []
         # validate
@@ -114,6 +112,16 @@ class Component(ComponentBase):
             error = f'Some required columns are missing for format {table_type}. ' \
                     f'Missing columns: [{"; ".join(errors)}] '
             raise UserException(error)
+
+    def output_folder_cleanup(self) -> None:
+        dir_to_clean = self.data_path
+        for files in os.listdir(dir_to_clean):
+            path = os.path.join(dir_to_clean, files)
+            try:
+                shutil.rmtree(path)
+            except OSError:
+                os.remove(path)
+        logging.info("Cleaning output folder before processing next chunk.")
 
     def _write_json_content_to_file(self, file: FileDefinition, content: dict):
         Path(file.full_path).parent.mkdir(parents=True, exist_ok=True)
@@ -127,14 +135,23 @@ class Component(ComponentBase):
 
         with open(table.full_path, 'r', encoding='utf-8') as inp:
             reader = csv.DictReader(inp)
+            i = 0  # inside-chunk counter
             for row in reader:
                 out_file = self.create_out_file_definition(f'{row["shop_id"]}/{row["slug"]}/price-history.json')
                 content = json.loads(row['json'])
                 self._write_json_content_to_file(out_file, content)
+                i += 1
+                if i == self.chunksize:
+                    # CREATE LIST OF FILES IN OUTPUT FOLDER
+                    self.local_paths, self.target_paths = self.prepare_lists_of_files(self.data_path,
+                                                                                      self.s3_bucket_dir)
+                    # SEND FILES TO TARGET DIR IN S3
+                    self.process_upload()
 
-    def _generate_metadata_content(self, columns, row: List[str]):
-        converter = Csv2JsonConverter(headers=columns, delimiter='__')
-        return converter.convert_row(row, [], '__', infer_undefined=True)
+                    # DELETE OUTPUT FOLDER
+                    self.output_folder_cleanup()
+
+                    i = 0
 
     def _generate_metadata(self, table: TableDefinition):
         expected_columns = ['slug', 'shop_id']
@@ -143,6 +160,7 @@ class Component(ComponentBase):
 
         with open(table.full_path, 'r') as inp:
             reader = csv.DictReader(inp)
+            i = 0
             for row in reader:
                 out_file = self.create_out_file_definition(f'{row["shop_id"]}/{row["slug"]}/meta.json')
                 # remove columns:
@@ -151,6 +169,22 @@ class Component(ComponentBase):
 
                 content = self._generate_metadata_content(list(row.keys()), list(row.values()))
                 self._write_json_content_to_file(out_file, content[0])
+                i += 1
+                if i == self.chunksize:
+                    # CREATE LIST OF FILES IN OUTPUT FOLDER
+                    self.local_paths, self.target_paths = self.prepare_lists_of_files(self.data_path,
+                                                                                      self.s3_bucket_dir)
+                    # SEND FILES TO TARGET DIR IN S3
+                    self.process_upload()
+
+                    # DELETE OUTPUT FOLDER
+                    self.output_folder_cleanup()
+
+                    i = 0
+
+    def _generate_metadata_content(self, columns, row: List[str]):
+        converter = Csv2JsonConverter(headers=columns, delimiter='__')
+        return converter.convert_row(row, [], '__', infer_undefined=True)
 
     def process_upload(self):
         """
@@ -160,7 +194,10 @@ class Component(ComponentBase):
 
         Returns: None
         """
-        logging.info(f"Processing {len(self.local_paths)} files.")
+        logging.info(f"Processing upload for {len(self.local_paths)} files.")
+
+        print(self.local_paths)
+        exit()
 
         func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
@@ -174,8 +211,6 @@ class Component(ComponentBase):
                     if future.exception():
                         logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
                     pbar.update(1)
-
-        logging.info('All files were successfully sent!')
 
     def get_client_from_session(self, params) -> boto3.Session.client:
         """

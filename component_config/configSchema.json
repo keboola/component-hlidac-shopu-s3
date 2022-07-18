@@ -2,9 +2,10 @@
   "type": "object",
   "title": "writer configuration",
   "required": [
+    "format": "pricehistory",
     "aws_access_key_id",
     "#aws_secret_access_key",
-    "format"
+    "aws_bucket"
   ],
   "properties": {
     "aws_access_key_id": {
@@ -19,9 +20,17 @@
       "type": "string",
       "title": "Input file format"
     },
-    "debug": {
-      "type": "boolean",
-      "title": "Debug"
+    "aws_bucket": {
+      "type": "string",
+      "title": "Target AWS bucket"
+    },
+    "aws_directory": {
+      "type": "string",
+      "title": "AWS directory name to store the files to, if needed."
+    },
+    "workers": {
+      "type": "int",
+      "title": "Number of threads used to upload files to S3"
     }
   }
 }
