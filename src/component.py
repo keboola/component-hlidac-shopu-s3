@@ -27,8 +27,6 @@ AWS_BUCKET = "aws_bucket"
 WORKERS = "workers"
 S3_BUCKET_DIR = "s3_test/"
 
-INPUT_DIR = "/data/out/files/"
-
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
 REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
@@ -96,7 +94,7 @@ class Component(ComponentBase):
         logging.info("Parsing finished successfully!")
 
         # TODO is there a better way to get data/out/files folder?
-        data_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data/out/files/")
+        data_path = self.files_out_path
         self.local_paths, self.target_paths = self.prepare_lists_of_files(data_path, S3_BUCKET_DIR)
 
         self.process_upload()

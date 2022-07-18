@@ -19,4 +19,4 @@ services:
     command:
       - /bin/sh
       - /code/scripts/build_n_test.sh
-    mem_limit: 1000m
+    mem_limit: 500m
