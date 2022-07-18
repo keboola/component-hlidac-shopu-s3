@@ -196,9 +196,6 @@ class Component(ComponentBase):
         """
         logging.info(f"Processing upload for {len(self.local_paths)} files.")
 
-        print(self.local_paths)
-        exit()
-
         func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
         with tqdm(desc="Uploading files to S3", total=len(self.local_paths)) as pbar:
