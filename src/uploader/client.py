@@ -24,7 +24,6 @@ class S3Writer:
         super().__init__()
         self.aws_bucket = params.get(AWS_BUCKET)
         self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
-        self.params = params
         self.data_path = data_path
         if params.get(WORKERS):
             self.workers = int(params.get(WORKERS))

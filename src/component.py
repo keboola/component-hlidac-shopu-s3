@@ -21,7 +21,6 @@ KEY_FORMAT = 'format'
 AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
-WORKERS = "workers"
 S3_BUCKET_DIR = "aws_directory"
 
 # list of mandatory parameters => if some is missing,
@@ -45,13 +44,10 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
-        self.aws_bucket = None
         self.s3_bucket_dir = ''
         self.params = None
-        self.client = None
         self.target_paths = None
         self.local_paths = None
-        self.workers = 1
         self.chunksize = 1000
 
     def run(self):
@@ -63,7 +59,6 @@ class Component(ComponentBase):
         params = self.configuration.parameters
 
         self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
-        self.aws_bucket = params.get(AWS_BUCKET)
 
         # Access parameters in data/config.json
         if params.get(KEY_FORMAT):
