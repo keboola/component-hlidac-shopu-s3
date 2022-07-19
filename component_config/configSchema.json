@@ -10,12 +10,13 @@
   "properties": {
     "aws_access_key_id": {
       "type": "string",
-      "title": "AWS access key",
+      "title": "AWS access key ID",
       "propertyOrder": 1
     },
     "#aws_secret_access_key": {
       "type": "string",
       "title": "AWS secret access key",
+      "description": "The secret key will be encrypted.",
       "propertyOrder": 2
     },
     "format": {
