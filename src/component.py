@@ -112,7 +112,6 @@ class Component(ComponentBase):
                 shutil.rmtree(path)
             except OSError:
                 os.remove(path)
-        logging.info("Cleaning output folder before processing next chunk.")
 
     def _write_json_content_to_file(self, file: FileDefinition, content: dict):
         Path(file.full_path).parent.mkdir(parents=True, exist_ok=True)
@@ -133,6 +132,7 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content)
                 i += 1
                 if i == self.chunksize:
+                    print(f"Uploading chunk {i} for table {table.name} to S3")
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
                     self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
                         self.files_out_path,
@@ -163,6 +163,7 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content[0])
                 i += 1
                 if i == self.chunksize:
+                    print(f"Uploading chunk {i} for table {table.name} to S3")
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
                     self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
                         self.files_out_path,

@@ -28,7 +28,7 @@ class S3Writer:
 
         if params.get(WORKERS):
             self.workers = int(params.get(WORKERS))
-            logging.info(f"Number of workers set: {self.workers}")
+            logging.info(f"Number of workers set to: {self.workers}")
         else:
             logging.warning("Number of workers is not set. Using serial mode.")
             self.workers = 1
@@ -45,7 +45,7 @@ class S3Writer:
         """
         func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
-        with tqdm(desc=f"Uploading files for table {table_name} to S3", total=len(local_paths)) as pbar:
+        with tqdm(total=len(local_paths)) as pbar:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 futures = {
                     executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
