@@ -132,7 +132,7 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content)
                 i += 1
                 if i == self.chunksize:
-                    print(f"Uploading chunk for table {table.name} to S3")
+                    logging.info(f"Uploading chunk for table {table.name} to S3")
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
                     self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
                         self.files_out_path,
@@ -163,7 +163,7 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content[0])
                 i += 1
                 if i == self.chunksize:
-                    print(f"Uploading chunk for table {table.name} to S3")
+                    logging.info(f"Uploading chunk for table {table.name} to S3")
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
                     self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
                         self.files_out_path,
