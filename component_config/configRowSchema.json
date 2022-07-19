@@ -1,6 +1,5 @@
 {
   "type": "object",
   "title": "writer configuration",
-  "required": [],
-  "properties": { TODO DUMMY}
+  "properties": {}
 }
