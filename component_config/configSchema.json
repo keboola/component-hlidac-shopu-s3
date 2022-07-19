@@ -10,27 +10,44 @@
   "properties": {
     "aws_access_key_id": {
       "type": "string",
-      "title": "AWS access key"
+      "title": "AWS access key",
+      "propertyOrder": 1
     },
     "#aws_secret_access_key": {
       "type": "string",
-      "title": "AWS secret access key"
+      "title": "AWS secret access key",
+      "propertyOrder": 2
     },
     "format": {
       "type": "string",
-      "title": "Input file format"
+      "enum": [
+        "pricehistory",
+        "metadata"
+      ],
+      "title": "Input file format",
+      "propertyOrder": 3
     },
     "aws_bucket": {
       "type": "string",
-      "title": "Target AWS bucket"
+      "title": "Target AWS bucket",
+      "propertyOrder": 4
     },
     "aws_directory": {
       "type": "string",
-      "title": "AWS directory name to store the files to, if needed."
+      "title": "AWS directory name to store the files to, if needed.",
+      "propertyOrder": 5
     },
     "workers": {
       "type": "integer",
-      "title": "Number of threads used to upload files to S3"
+      "title": "Number of threads used to upload files to S3.",
+      "default": 32,
+      "propertyOrder": 6
+    },
+    "chunksize": {
+      "type": "integer",
+      "title": "Number of files to process in a single batch.",
+      "default": 5000,
+      "propertyOrder": 7
     }
   }
 }

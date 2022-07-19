@@ -22,6 +22,7 @@ AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
 S3_BUCKET_DIR = "aws_directory"
+CHUNKSIZE = "chunksize"
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
@@ -44,11 +45,12 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
+        self.upload_processor = None
         self.s3_bucket_dir = ''
         self.params = None
         self.target_paths = None
         self.local_paths = None
-        self.chunksize = 1000
+        self.chunksize = 5000
 
     def run(self):
         """
@@ -63,6 +65,12 @@ class Component(ComponentBase):
         # Access parameters in data/config.json
         if params.get(KEY_FORMAT):
             logging.info(f"Format setting is: {params.get(KEY_FORMAT)}")
+
+        if params.get(CHUNKSIZE):
+            self.chunksize = int(params.get(CHUNKSIZE))
+            logging.info(f"Chunk size set to: {self.chunksize}")
+        else:
+            logging.warning(f"Chunk size is not set. Using default chunksize: {self.chunksize}.")
 
         input_tables = self.get_input_tables_definitions()
 
@@ -130,7 +138,7 @@ class Component(ComponentBase):
                         self.files_out_path,
                         self.s3_bucket_dir)
                     # SEND FILES TO TARGET DIR IN S3
-                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
+                    self.upload_processor.process_upload(table.name, self.local_paths, self.target_paths)
 
                     # DELETE OUTPUT FOLDER
                     self.output_folder_cleanup()
@@ -160,7 +168,7 @@ class Component(ComponentBase):
                         self.files_out_path,
                         self.s3_bucket_dir)
                     # SEND FILES TO TARGET DIR IN S3
-                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
+                    self.upload_processor.process_upload(table.name, self.local_paths, self.target_paths)
 
                     # DELETE OUTPUT FOLDER
                     self.output_folder_cleanup()

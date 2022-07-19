@@ -25,15 +25,17 @@ class S3Writer:
         self.aws_bucket = params.get(AWS_BUCKET)
         self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
         self.data_path = data_path
+
         if params.get(WORKERS):
             self.workers = int(params.get(WORKERS))
             logging.info(f"Number of workers set: {self.workers}")
         else:
             logging.warning("Number of workers is not set. Using serial mode.")
             self.workers = 1
+
         self.client = self.get_client_from_session(params)
 
-    def process_upload(self, local_paths, target_paths):
+    def process_upload(self, table_name, local_paths, target_paths):
         """
         inspired by https://emasquil.github.io/posts/multithreading-boto3/
 
@@ -43,7 +45,7 @@ class S3Writer:
         """
         func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
-        with tqdm(desc="Uploading files to S3", total=len(local_paths)) as pbar:
+        with tqdm(desc=f"Uploading files for table {table_name} to S3", total=len(local_paths)) as pbar:
             with ThreadPoolExecutor(max_workers=self.workers) as executor:
                 futures = {
                     executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
