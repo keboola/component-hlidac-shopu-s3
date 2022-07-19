@@ -132,13 +132,13 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content)
                 i += 1
                 if i == self.chunksize:
-                    print(f"Uploading chunk {i} for table {table.name} to S3")
+                    print(f"Uploading chunk for table {table.name} to S3")
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
                     self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
                         self.files_out_path,
                         self.s3_bucket_dir)
                     # SEND FILES TO TARGET DIR IN S3
-                    self.upload_processor.process_upload(table.name, self.local_paths, self.target_paths)
+                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
 
                     # DELETE OUTPUT FOLDER
                     self.output_folder_cleanup()
@@ -163,13 +163,13 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content[0])
                 i += 1
                 if i == self.chunksize:
-                    print(f"Uploading chunk {i} for table {table.name} to S3")
+                    print(f"Uploading chunk for table {table.name} to S3")
                     # CREATE LIST OF FILES IN OUTPUT FOLDER
                     self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
                         self.files_out_path,
                         self.s3_bucket_dir)
                     # SEND FILES TO TARGET DIR IN S3
-                    self.upload_processor.process_upload(table.name, self.local_paths, self.target_paths)
+                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
 
                     # DELETE OUTPUT FOLDER
                     self.output_folder_cleanup()

@@ -1,7 +1,6 @@
 import logging
 import boto3
 import os
-from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 import botocore
@@ -35,7 +34,7 @@ class S3Writer:
 
         self.client = self.get_client_from_session(params)
 
-    def process_upload(self, table_name, local_paths, target_paths):
+    def process_upload(self, local_paths, target_paths):
         """
         inspired by https://emasquil.github.io/posts/multithreading-boto3/
 
@@ -45,16 +44,14 @@ class S3Writer:
         """
         func = partial(self.upload_one_file, self.aws_bucket, self.client)
 
-        with tqdm(total=len(local_paths)) as pbar:
-            with ThreadPoolExecutor(max_workers=self.workers) as executor:
-                futures = {
-                    executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
-                    file_to_upload, target_path in zip(local_paths, target_paths)
-                }
-                for future in as_completed(futures):
-                    if future.exception():
-                        logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
-                    pbar.update(1)
+        with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            futures = {
+                executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
+                file_to_upload, target_path in zip(local_paths, target_paths)
+            }
+            for future in as_completed(futures):
+                if future.exception():
+                    logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
 
     def get_client_from_session(self, params) -> boto3.Session.client:
         """
