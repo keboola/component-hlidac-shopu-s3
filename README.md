@@ -1,4 +1,4 @@
-Json Generator (Hlidac Shopu)
+S3 Writer (Hlidac Shopu)
 =============
 
 Ze vstupni tabulky / tabulek vygeneruje json soubory `$shop.tld$/$slug$/price-history.json`
