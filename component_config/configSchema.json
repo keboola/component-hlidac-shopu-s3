@@ -11,12 +11,13 @@
     "aws_access_key_id": {
       "type": "string",
       "title": "AWS access key ID",
+      "description": "Make sure that this AWS Access Key ID has correct permissions.",
       "propertyOrder": 1
     },
     "#aws_secret_access_key": {
       "type": "string",
       "title": "AWS secret access key",
-      "description": "The secret key will be encrypted.",
+      "description": "The AWS Secret Access Key will be encrypted.",
       "propertyOrder": 2
     },
     "format": {
@@ -26,22 +27,24 @@
         "metadata"
       ],
       "title": "Input file format",
-      "propertyOrder": 3
+      "propertyOrder": 5
     },
     "aws_bucket": {
       "type": "string",
       "title": "Target AWS bucket",
-      "propertyOrder": 4
+      "description": "Name of the target AWS S3 bucket.",
+      "propertyOrder": 3
     },
     "aws_directory": {
       "type": "string",
       "title": "AWS directory name to store the files to, if needed.",
-      "propertyOrder": 5
+      "description": "If you want to store files in `files` subfolder, enter `files/` If you want to store files to AWS bucket root directory, leave empty.",
+      "propertyOrder": 4
     },
     "workers": {
       "type": "integer",
       "title": "Number of threads used to upload files to S3.",
-      "default": 32,
+      "default": 64,
       "propertyOrder": 6
     },
     "chunksize": {

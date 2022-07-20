@@ -41,7 +41,7 @@ Kazda vsuptni tabulka musi obsahovat sloupce `shop_id` a `slug`.
     "#aws_secret_access_key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "aws_bucket": "keboola-test",
     "aws_directory": "s3_test/",
-    "workers": 32,
+    "workers": 64,
     "chunksize": 5000
   },
   "action":"run",
@@ -71,7 +71,7 @@ JSON string ve sloupci `json` se ulozi podle nasledujici masky:
     "#aws_secret_access_key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "aws_bucket": "keboola-test",
     "aws_directory": "s3_test/",
-    "workers": 32,
+    "workers": 64,
     "chunksize": 5000
   },
   "action":"run",

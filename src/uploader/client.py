@@ -22,7 +22,9 @@ class S3Writer:
     def __init__(self, params, data_path):
         super().__init__()
         self.aws_bucket = params.get(AWS_BUCKET)
-        self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
+
+        self.s3_bucket_dir = self.verify_and_correct_s3_bucket_dir(params.get(S3_BUCKET_DIR))
+
         self.data_path = data_path
 
         if params.get(WORKERS):
@@ -97,6 +99,23 @@ class S3Writer:
                 _target_paths.append(out_dir + os.path.join(root, name).replace(in_dir, "")[1:])
 
         return _local_paths, _target_paths
+
+    @staticmethod
+    def verify_and_correct_s3_bucket_dir(s3_dir) -> str:
+        """
+        Checks if there is a S3 subfolder specified to store the files to. If there is, then there is a check
+        for leading and trailing slash.
+        """
+        if len(s3_dir) > 0:
+            if s3_dir.startswith("/"):
+                s3_dir = s3_dir[1:]
+            if not s3_dir.endswith("/"):
+                s3_dir = s3_dir + "/"
+            logging.info(f"Files will be stored to: {s3_dir}")
+            return s3_dir
+        else:
+            logging.info("Files will be stored to root directory.")
+            return ""
 
     @staticmethod
     def upload_one_file(bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
