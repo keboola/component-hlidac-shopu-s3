@@ -2,7 +2,7 @@ S3 Writer (Hlidac Shopu)
 =============
 
 Ze vstupni tabulky / tabulek vygeneruje json soubory `$shop.tld$/$slug$/price-history.json`
-nebo `$shop.tld$/$slug$/metadata.json`
+nebo `$shop.tld$/$slug$/metadata.json` a následně je po dávkách odešle do AWS S3.
 
 
 [TOC]
