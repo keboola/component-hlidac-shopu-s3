@@ -73,11 +73,15 @@ class S3Writer:
         return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers + 8))
 
     def test_connection_ok(self, params) -> bool:
-        conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
-        if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            logging.info("S3 Connection successful.")
-            return True
-        return False
+        try:
+            conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
+            if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
+                logging.info("S3 Connection successful.")
+                return True
+            return False
+        except Exception as e:
+            logging.warning(e)
+            return False
 
     @staticmethod
     def prepare_lists_of_files(in_dir, out_dir):
