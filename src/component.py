@@ -190,7 +190,6 @@ class Component(ComponentBase):
         return converter.convert_row(row, coltypes=coltypes_metadata, delimit="__", infer_undefined=True)
 
 
-
 """
         Main entrypoint
 """
