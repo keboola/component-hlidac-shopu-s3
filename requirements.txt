@@ -3,8 +3,8 @@ keboola.utils
 https://bitbucket.org/kds_consulting_team/kds-team.processor-csv-to-json/get/0.5.1.zip#egg=csv2json
 https://bitbucket.org/kds_consulting_team/datadirtest/get/1.5.1.zip#egg=datadirtest
 mock~=4.0.3
-freezegun~=1.2.1
+freezegun~=1.2.2
 boto3~=1.24.29
-csv2json~=0.5.1
+csv2json
 botocore~=1.27.29
-datadirtest~=1.5.1
+datadirtest

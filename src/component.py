@@ -31,6 +31,13 @@ REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
                        AWS_BUCKET,
                        KEY_FORMAT]
 
+coltypes_metadata = [{"column": "itemId",
+                      "type": "string"},
+                     {"column": "itemName",
+                      "type": "string"},
+                     {"column": "itemImage",
+                      "type": "string"}]
+
 
 class Component(ComponentBase):
     """
@@ -177,9 +184,11 @@ class Component(ComponentBase):
 
                     i = 0
 
-    def _generate_metadata_content(self, columns, row: List[str]):
+    @staticmethod
+    def _generate_metadata_content(columns, row: List[str]):
         converter = Csv2JsonConverter(headers=columns, delimiter='__')
-        return converter.convert_row(row, [], '__', infer_undefined=True)
+        return converter.convert_row(row, coltypes=coltypes_metadata, delimit="__", infer_undefined=True)
+
 
 
 """
