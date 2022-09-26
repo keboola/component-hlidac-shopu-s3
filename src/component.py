@@ -31,13 +31,6 @@ REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
                        AWS_BUCKET,
                        KEY_FORMAT]
 
-coltypes_metadata = [{"column": "itemId",
-                      "type": "string"},
-                     {"column": "itemName",
-                      "type": "string"},
-                     {"column": "itemImage",
-                      "type": "string"}]
-
 
 class Component(ComponentBase):
     """
@@ -52,20 +45,12 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
-        self.upload_processor = None
-        self.s3_bucket_dir = ''
-        self.params = None
-        self.target_paths = None
-        self.local_paths = None
-        self.chunksize = 5000
-
-    def run(self):
-        """
-        Main execution code
-        """
-        # check for missing configuration parameters
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
         params = self.configuration.parameters
+        self.upload_processor = None
+        self.s3_bucket_dir = ''
+        self.target_paths = None
+        self.local_paths = None
 
         self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
 
@@ -77,13 +62,22 @@ class Component(ComponentBase):
             self.chunksize = int(params.get(CHUNKSIZE))
             logging.info(f"Chunk size set to: {self.chunksize}")
         else:
+            self.chunksize = 5000
             logging.warning(f"Chunk size is not set. Using default chunksize: {self.chunksize}.")
+
+        self.custom_mapping = [] if params.get("field_datatypes") is None else params.get("field_datatypes")
+        print(self.custom_mapping)
+
+    def run(self):
+        """
+        Main execution code
+        """
 
         input_tables = self.get_input_tables_definitions()
 
-        self.upload_processor = S3Writer(params, self.files_out_path)
+        self.upload_processor = S3Writer(self.configuration.parameters, self.files_out_path)
 
-        if not self.upload_processor.test_connection_ok(params):
+        if not self.upload_processor.test_connection_ok(self.configuration.parameters):
             logging.warning("Connection check failed. Connection is not possible or your account does not have "
                             "READ_ACP rights.")
 
@@ -100,7 +94,8 @@ class Component(ComponentBase):
 
         logging.info("Parsing finished successfully!")
 
-    def _validate_expected_columns(self, table_type, table: TableDefinition, expected_columns: List[str]):
+    @staticmethod
+    def _validate_expected_columns(table_type, table: TableDefinition, expected_columns: List[str]):
         errors = []
         # validate
         for c in expected_columns:
@@ -121,7 +116,8 @@ class Component(ComponentBase):
             except OSError:
                 os.remove(path)
 
-    def _write_json_content_to_file(self, file: FileDefinition, content: dict):
+    @staticmethod
+    def _write_json_content_to_file(file: FileDefinition, content: dict):
         Path(file.full_path).parent.mkdir(parents=True, exist_ok=True)
         with open(file.full_path, 'w+', encoding='utf-8') as outp:
             json.dump(content, outp)
@@ -184,10 +180,9 @@ class Component(ComponentBase):
 
                     i = 0
 
-    @staticmethod
-    def _generate_metadata_content(columns, row: List[str]):
+    def _generate_metadata_content(self, columns, row: List[str]):
         converter = Csv2JsonConverter(headers=columns, delimiter='__')
-        return converter.convert_row(row, coltypes=coltypes_metadata, delimit="__", infer_undefined=True)
+        return converter.convert_row(row, coltypes=self.custom_mapping, delimit="__", infer_undefined=True)
 
 
 """
