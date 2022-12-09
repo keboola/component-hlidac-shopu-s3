@@ -131,6 +131,7 @@ class S3Writer:
             client (boto3.client): S3 client
             local_file (str): S3 file name
         """
+        logging.info(f"Uploading file: {local_file}")
 
         client.upload_file(
             local_file, bucket, target_path

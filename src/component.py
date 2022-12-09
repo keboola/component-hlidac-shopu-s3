@@ -126,8 +126,19 @@ class Component(ComponentBase):
         expected_columns = ['shop_id', 'slug', 'json']
         # validate
         self._validate_expected_columns('pricehistory', table, expected_columns)
+        table_full_path = table.full_path
 
-        with open(table.full_path, 'r', encoding='utf-8') as inp:
+        rowcount = 0
+        # iterating through the whole file
+        for _ in open(table_full_path):
+            rowcount += 1
+
+        # if this would not be here the method would never send the data in following loop
+        if rowcount <= self.chunksize:
+            self.chunksize = rowcount-1
+            logging.info(f"Chunksize overriden to {self.chunksize}, reason: low row count.")
+
+        with open(table_full_path, 'r', encoding='utf-8') as inp:
             reader = csv.DictReader(inp)
             i = 0  # inside-chunk counter
             for row in reader:
