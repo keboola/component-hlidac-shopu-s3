@@ -35,6 +35,7 @@ class S3Writer:
             self.workers = 1
 
         self.client = self.get_client_from_session(params)
+        self.sent_files_counter = 0
 
     def process_upload(self, local_paths, target_paths):
         """
@@ -121,8 +122,7 @@ class S3Writer:
             logging.info("Files will be stored to root directory.")
             return ""
 
-    @staticmethod
-    def upload_one_file(bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
+    def upload_one_file(self, bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
         """
         Download a single file from S3
         Args:
@@ -134,3 +134,4 @@ class S3Writer:
         client.upload_file(
             local_file, bucket, target_path
         )
+        self.sent_files_counter += 1

@@ -66,7 +66,6 @@ class Component(ComponentBase):
             logging.warning(f"Chunk size is not set. Using default chunksize: {self.chunksize}.")
 
         self.custom_mapping = [] if params.get("field_datatypes") is None else params.get("field_datatypes")
-        print(self.custom_mapping)
 
     def run(self):
         """
@@ -92,7 +91,8 @@ class Component(ComponentBase):
                 raise UserException(f"Wrong parameter in data/config.json {_format}. "
                                     "Viable parameters are: pricehistory/metadata")
 
-        logging.info("Parsing finished successfully!")
+        logging.info(f"Parsing finished successfully. "
+                     f"Component processed {self.upload_processor.sent_files_counter} files.")
 
     @staticmethod
     def _validate_expected_columns(table_type, table: TableDefinition, expected_columns: List[str]):
@@ -147,24 +147,14 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content)
                 i += 1
                 if i == self.chunksize:
-                    logging.info(f"Uploading chunk for table {table.name} to S3")
-                    # CREATE LIST OF FILES IN OUTPUT FOLDER
-                    self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
-                        self.files_out_path,
-                        self.s3_bucket_dir)
-                    # SEND FILES TO TARGET DIR IN S3
-                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
-
-                    # DELETE OUTPUT FOLDER
-                    self.output_folder_cleanup()
-
+                    self._send_data(table)
                     i = 0
+            self._send_data(table)
 
     def _generate_metadata(self, table: TableDefinition):
         expected_columns = ['slug', 'shop_id']
         # validate
         self._validate_expected_columns('metadata', table, expected_columns)
-
         with open(table.full_path, 'r') as inp:
             reader = csv.DictReader(inp)
             i = 0
@@ -178,22 +168,28 @@ class Component(ComponentBase):
                 self._write_json_content_to_file(out_file, content[0])
                 i += 1
                 if i == self.chunksize:
-                    logging.info(f"Uploading chunk for table {table.name} to S3")
-                    # CREATE LIST OF FILES IN OUTPUT FOLDER
-                    self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
-                        self.files_out_path,
-                        self.s3_bucket_dir)
-                    # SEND FILES TO TARGET DIR IN S3
-                    self.upload_processor.process_upload(self.local_paths, self.target_paths)
-
-                    # DELETE OUTPUT FOLDER
-                    self.output_folder_cleanup()
-
+                    self._send_data(table)
                     i = 0
+            self._send_data(table)
 
     def _generate_metadata_content(self, columns, row: List[str]):
         converter = Csv2JsonConverter(headers=columns, delimiter='__')
         return converter.convert_row(row, coltypes=self.custom_mapping, delimit="__", infer_undefined=True)
+
+    def _send_data(self, table):
+        """
+        Sends data to S3 and cleans the output folder.
+        """
+        logging.info(f"Uploading chunk for table {table.name} to S3")
+        # CREATE LIST OF FILES IN OUTPUT FOLDER
+        self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
+            self.files_out_path,
+            self.s3_bucket_dir)
+        # SEND FILES TO TARGET DIR IN S3
+        self.upload_processor.process_upload(self.local_paths, self.target_paths)
+
+        # DELETE OUTPUT FOLDER
+        self.output_folder_cleanup()
 
 
 """
