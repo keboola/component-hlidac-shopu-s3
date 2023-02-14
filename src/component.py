@@ -130,16 +130,14 @@ class Component(ComponentBase):
     def _generate_price_history(self, table: TableDefinition):
         expected_columns = ['shop_id', 'slug', 'json']
         self._validate_expected_columns('pricehistory', table, expected_columns)
-        table_full_path = table.full_path
-
-        with open(table_full_path, 'r', encoding='utf-8') as inp:
+        with open(table.full_path, 'r', encoding='utf-8') as inp:
             reader = csv.DictReader(inp)
             for row in reader:
                 out_file = self.create_out_file_definition(f'{row["shop_id"]}/{row["slug"]}/price-history.json')
                 content = json.loads(row['json'])
                 self._write_json_content_to_file(out_file, content)
             self.zip_and_clean_folders(self.files_out_path)
-            self._send_data(table)
+        self._send_data(table)
 
     def _generate_metadata(self, table: TableDefinition):
         expected_columns = ['slug', 'shop_id']
@@ -153,7 +151,7 @@ class Component(ComponentBase):
                 content = self._generate_metadata_content(list(row.keys()), list(row.values()))
                 self._write_json_content_to_file(out_file, content[0])
             self.zip_and_clean_folders(self.files_out_path)
-            self._send_data(table)
+        self._send_data(table)
 
     def _generate_metadata_content(self, columns, row: List[str]):
         converter = Csv2JsonConverter(headers=columns, delimiter='__')
