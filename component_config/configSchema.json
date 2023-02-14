@@ -64,19 +64,7 @@
                "format":"metadata"
             }
          },
-         "propertyOrder":5
-      },
-      "workers":{
-         "type":"integer",
-         "title":"Number of threads used to upload files to S3.",
-         "default":64,
          "propertyOrder":6
-      },
-      "chunksize":{
-         "type":"integer",
-         "title":"Number of files to process in a single batch.",
-         "default":5000,
-         "propertyOrder":7
       }
    }
 }
