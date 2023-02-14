@@ -1,9 +1,6 @@
 import logging
 import boto3
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import partial
-import botocore
 
 # configuration variables
 KEY_FORMAT = 'format'
@@ -22,41 +19,22 @@ class S3Writer:
     def __init__(self, params, data_path):
         super().__init__()
         self.aws_bucket = params.get(AWS_BUCKET)
-
         self.s3_bucket_dir = self.verify_and_correct_s3_bucket_dir(params.get(S3_BUCKET_DIR))
-
         self.data_path = data_path
-
-        if params.get(WORKERS):
-            self.workers = int(params.get(WORKERS))
-            logging.info(f"Number of workers set to: {self.workers}")
-        else:
-            logging.warning("Number of workers is not set. Using serial mode.")
-            self.workers = 1
-
         self.client = self.get_client_from_session(params)
         self.sent_files_counter = 0
 
     def process_upload(self, local_paths, target_paths):
         """
-        inspired by https://emasquil.github.io/posts/multithreading-boto3/
-
-        Uploads file to S3 storage in threads with number of workers defined by WORKERS parameter.
+        Uploads files to S3 storage.
 
         Returns: None
         """
-        func = partial(self.upload_one_file, self.aws_bucket, self.client)
+        for file_to_upload, target_path in zip(local_paths, target_paths):
+            self.upload_one_file(self.aws_bucket, self.client, file_to_upload, target_path)
 
-        with ThreadPoolExecutor(max_workers=self.workers) as executor:
-            futures = {
-                executor.submit(func, file_to_upload, target_path): [file_to_upload, target_path] for
-                file_to_upload, target_path in zip(local_paths, target_paths)
-            }
-            for future in as_completed(futures):
-                if future.exception():
-                    logging.error(f"Could not upload file: {futures[future]}, reason: {future.exception()}")
-
-    def get_client_from_session(self, params) -> boto3.Session.client:
+    @staticmethod
+    def get_client_from_session(params) -> boto3.Session.client:
         """
         Creates and returns boto3 client class.
 
@@ -71,15 +49,13 @@ class S3Writer:
             aws_access_key_id=params.get(AWS_ACCESS_KEY_ID),
             aws_secret_access_key=params.get(AWS_SECRET_ACCESS_KEY)
         )
-        return session.client('s3', config=botocore.client.Config(max_pool_connections=self.workers + 8))
+        return session.client('s3')
 
     def test_connection_ok(self, params) -> bool:
         try:
-            conn_test = self.client.get_bucket_acl(Bucket=params.get(AWS_BUCKET))
-            if conn_test["ResponseMetadata"]["HTTPStatusCode"] == 200:
-                logging.info("S3 Connection successful.")
-                return True
-            return False
+            self.client.head_bucket(Bucket=params.get(AWS_BUCKET))
+            logging.info("S3 Connection successful.")
+            return True
         except Exception as e:
             logging.warning(e)
             return False
@@ -111,16 +87,15 @@ class S3Writer:
         Checks if there is a S3 subfolder specified to store the files to. If there is, then there is a check
         for leading and trailing slash.
         """
-        if len(s3_dir) > 0:
-            if s3_dir.startswith("/"):
-                s3_dir = s3_dir[1:]
-            if not s3_dir.endswith("/"):
-                s3_dir = s3_dir + "/"
+        if s3_dir.startswith("/"):
+            s3_dir = s3_dir[1:]
+        if s3_dir and not s3_dir.endswith("/"):
+            s3_dir += "/"
+        if s3_dir:
             logging.info(f"Files will be stored to: {s3_dir}")
-            return s3_dir
         else:
             logging.info("Files will be stored to root directory.")
-            return ""
+        return s3_dir
 
     def upload_one_file(self, bucket: str, client: boto3.client, local_file: str, target_path: str) -> None:
         """

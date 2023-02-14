@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List
 import os
 import shutil
+import zipfile
 
 from csv2json.hone_csv2json import Csv2JsonConverter
 from keboola.component.base import ComponentBase
@@ -22,7 +23,6 @@ AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
 S3_BUCKET_DIR = "aws_directory"
-CHUNKSIZE = "chunksize"
 
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
@@ -58,13 +58,6 @@ class Component(ComponentBase):
         if params.get(KEY_FORMAT):
             logging.info(f"Format setting is: {params.get(KEY_FORMAT)}")
 
-        if params.get(CHUNKSIZE):
-            self.chunksize = int(params.get(CHUNKSIZE))
-            logging.info(f"Chunk size set to: {self.chunksize}")
-        else:
-            self.chunksize = 5000
-            logging.warning(f"Chunk size is not set. Using default chunksize: {self.chunksize}.")
-
         self.custom_mapping = [] if params.get("field_datatypes") is None else params.get("field_datatypes")
 
     def run(self):
@@ -97,7 +90,6 @@ class Component(ComponentBase):
     @staticmethod
     def _validate_expected_columns(table_type, table: TableDefinition, expected_columns: List[str]):
         errors = []
-        # validate
         for c in expected_columns:
             if c not in table.columns:
                 errors.append(c)
@@ -117,59 +109,50 @@ class Component(ComponentBase):
                 os.remove(path)
 
     @staticmethod
+    def zip_and_clean_folders(target_folder):
+        for folder_name in os.listdir(target_folder):
+            folder_path = os.path.join(target_folder, folder_name)
+            if os.path.isdir(folder_path):
+                zip_filename = folder_path + '.zip'
+                with zipfile.ZipFile(zip_filename, 'w') as zipf:
+                    for root, dirs, files in os.walk(folder_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            zipf.write(file_path, os.path.relpath(file_path, folder_path))
+                shutil.rmtree(folder_path)
+
+    @staticmethod
     def _write_json_content_to_file(file: FileDefinition, content: dict):
         Path(file.full_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(file.full_path, 'w+', encoding='utf-8') as outp:
-            json.dump(content, outp)
+        with open(file.full_path, 'w+', encoding='utf-8') as out:
+            json.dump(content, out)
 
     def _generate_price_history(self, table: TableDefinition):
         expected_columns = ['shop_id', 'slug', 'json']
-        # validate
         self._validate_expected_columns('pricehistory', table, expected_columns)
         table_full_path = table.full_path
 
-        rowcount = 0
-        # iterating through the whole file
-        for _ in open(table_full_path):
-            rowcount += 1
-
-        # if this would not be here the method would never send the data in following loop
-        if rowcount <= self.chunksize:
-            self.chunksize = rowcount-1
-            logging.info(f"Chunksize overriden to {self.chunksize}, reason: low row count.")
-
         with open(table_full_path, 'r', encoding='utf-8') as inp:
             reader = csv.DictReader(inp)
-            i = 0  # inside-chunk counter
             for row in reader:
                 out_file = self.create_out_file_definition(f'{row["shop_id"]}/{row["slug"]}/price-history.json')
                 content = json.loads(row['json'])
                 self._write_json_content_to_file(out_file, content)
-                i += 1
-                if i == self.chunksize:
-                    self._send_data(table)
-                    i = 0
+            self.zip_and_clean_folders(self.files_out_path)
             self._send_data(table)
 
     def _generate_metadata(self, table: TableDefinition):
         expected_columns = ['slug', 'shop_id']
-        # validate
         self._validate_expected_columns('metadata', table, expected_columns)
         with open(table.full_path, 'r') as inp:
             reader = csv.DictReader(inp)
-            i = 0
             for row in reader:
                 out_file = self.create_out_file_definition(f'{row["shop_id"]}/{row["slug"]}/meta.json')
-                # remove columns:
                 for c in expected_columns:
                     row.pop(c, None)
-
                 content = self._generate_metadata_content(list(row.keys()), list(row.values()))
                 self._write_json_content_to_file(out_file, content[0])
-                i += 1
-                if i == self.chunksize:
-                    self._send_data(table)
-                    i = 0
+            self.zip_and_clean_folders(self.files_out_path)
             self._send_data(table)
 
     def _generate_metadata_content(self, columns, row: List[str]):
@@ -180,7 +163,7 @@ class Component(ComponentBase):
         """
         Sends data to S3 and cleans the output folder.
         """
-        logging.info(f"Uploading chunk for table {table.name} to S3")
+        logging.info(f"Uploading data for table {table.name} to S3")
         # CREATE LIST OF FILES IN OUTPUT FOLDER
         self.local_paths, self.target_paths = self.upload_processor.prepare_lists_of_files(
             self.files_out_path,
