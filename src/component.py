@@ -133,7 +133,8 @@ class Component(ComponentBase):
         with open(table.full_path, 'r', encoding='utf-8') as inp:
             reader = csv.DictReader(inp)
             for row in reader:
-                out_file = self.create_out_file_definition(f'{row["shop_id"]}/{row["slug"]}/price-history.json')
+                out_file = self.create_out_file_definition(f'{row["shop_id"]}/items/{row["shop_id"]}/{row["slug"]}'
+                                                           f'/price-history.json')
                 content = json.loads(row['json'])
                 self._write_json_content_to_file(out_file, content)
             self.zip_and_clean_folders(self.files_out_path)
@@ -145,7 +146,8 @@ class Component(ComponentBase):
         with open(table.full_path, 'r') as inp:
             reader = csv.DictReader(inp)
             for row in reader:
-                out_file = self.create_out_file_definition(f'{row["shop_id"]}/{row["slug"]}/meta.json')
+                out_file = self.create_out_file_definition(f'{row["shop_id"]}/items/{row["shop_id"]}/{row["slug"]}'
+                                                           f'/meta.json')
                 for c in expected_columns:
                     row.pop(c, None)
                 content = self._generate_metadata_content(list(row.keys()), list(row.values()))
