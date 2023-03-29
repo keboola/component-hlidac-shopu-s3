@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List
 import os
 import shutil
+import zipfile
 
 from csv2json.hone_csv2json import Csv2JsonConverter
 from keboola.component.base import ComponentBase
@@ -122,8 +123,13 @@ class Component(ComponentBase):
         for folder_name in os.listdir(target_folder):
             folder_path = os.path.join(target_folder, folder_name)
             if os.path.isdir(folder_path):
-                zip_filename = os.path.join(target_folder, folder_name)
-                shutil.make_archive(zip_filename, 'zip', folder_path)
+                zip_filename = os.path.join(target_folder, f'{folder_name}.zip')
+                with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for root, dirs, files in os.walk(folder_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            archive_name = os.path.relpath(file_path, target_folder)
+                            zipf.write(file_path, archive_name)
                 shutil.rmtree(folder_path)
 
     @staticmethod
