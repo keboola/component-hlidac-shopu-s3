@@ -49,7 +49,7 @@ class S3Writer:
         )
         return session.client('s3')
 
-    def test_connection_ok(self, params) -> bool:
+    def test_connection_ok(self) -> bool:
         try:
             self.client.head_bucket(Bucket=self.aws_bucket)
             logging.info("S3 Connection successful.")

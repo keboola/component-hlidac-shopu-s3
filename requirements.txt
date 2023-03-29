@@ -8,3 +8,4 @@ boto3~=1.24.29
 csv2json
 botocore~=1.27.29
 datadirtest
+tqdm

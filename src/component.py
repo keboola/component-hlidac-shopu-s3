@@ -79,9 +79,9 @@ class Component(ComponentBase):
         self.upload_processor = S3Writer(self.configuration.parameters, self.files_out_path,
                                          aws_bucket=self.aws_bucket)
 
-        if not self.upload_processor.test_connection_ok(self.configuration.parameters):
-            logging.warning("Connection check failed. Connection is not possible or your account does not have "
-                            "READ_ACP rights.")
+        if not self.upload_processor.test_connection_ok():
+            raise UserException("Connection check failed. Connection is not possible or your account does not have "
+                                "READ_ACP rights.")
 
         for table in input_tables:
             _format = self.configuration.parameters[KEY_FORMAT]
