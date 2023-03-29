@@ -19,6 +19,7 @@ from uploader.client import S3Writer
 
 # configuration variables
 KEY_FORMAT = 'format'
+KEY_OVERRIDE = 'override_default_values'
 AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
@@ -48,11 +49,19 @@ class Component(ComponentBase):
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
         params = self.configuration.parameters
         self.upload_processor = None
-        self.s3_bucket_dir = ''
         self.target_paths = None
         self.local_paths = None
 
-        self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
+        if params.get(KEY_OVERRIDE, False):
+            self.s3_bucket_dir = params.get(S3_BUCKET_DIR)
+            self.aws_bucket = params.get(AWS_BUCKET)
+            logging.info(f"Component will use overriden values from config: s3_bucket_dir: {self.s3_bucket_dir}, "
+                         f"aws_bucket: {self.aws_bucket}")
+        else:
+            self.s3_bucket_dir = "ingest/"
+            self.aws_bucket = "ingest.hlidacshopu.cz"
+            logging.info(f"Component will use default values for config: s3_bucket_dir: {self.s3_bucket_dir}, "
+                         f"aws_bucket: {self.aws_bucket}")
 
         # Access parameters in data/config.json
         if params.get(KEY_FORMAT):
@@ -67,7 +76,8 @@ class Component(ComponentBase):
 
         input_tables = self.get_input_tables_definitions()
 
-        self.upload_processor = S3Writer(self.configuration.parameters, self.files_out_path)
+        self.upload_processor = S3Writer(self.configuration.parameters, self.files_out_path,
+                                         aws_bucket=self.aws_bucket)
 
         if not self.upload_processor.test_connection_ok(self.configuration.parameters):
             logging.warning("Connection check failed. Connection is not possible or your account does not have "

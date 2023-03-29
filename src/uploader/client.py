@@ -6,7 +6,6 @@ import os
 KEY_FORMAT = 'format'
 AWS_SECRET_ACCESS_KEY = '#aws_secret_access_key'
 AWS_ACCESS_KEY_ID = 'aws_access_key_id'
-AWS_BUCKET = "aws_bucket"
 WORKERS = "workers"
 S3_BUCKET_DIR = "aws_directory"
 
@@ -16,9 +15,9 @@ class S3Writer:
     This class handles the logic to upload files to AWS S3.
     """
 
-    def __init__(self, params, data_path):
+    def __init__(self, params, data_path, aws_bucket):
         super().__init__()
-        self.aws_bucket = params.get(AWS_BUCKET)
+        self.aws_bucket = aws_bucket
         self.data_path = data_path
         self.client = self.get_client_from_session(params)
         self.sent_files_counter = 0
@@ -52,7 +51,7 @@ class S3Writer:
 
     def test_connection_ok(self, params) -> bool:
         try:
-            self.client.head_bucket(Bucket=params.get(AWS_BUCKET))
+            self.client.head_bucket(Bucket=self.aws_bucket)
             logging.info("S3 Connection successful.")
             return True
         except Exception as e:
