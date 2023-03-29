@@ -135,14 +135,15 @@ class Component(ComponentBase):
     def _generate_price_history(self, table: TableDefinition):
         expected_columns = ['shop_id', 'slug', 'json']
         self._validate_expected_columns('pricehistory', table, expected_columns)
-        with open(table.full_path, 'r', encoding='utf-8') as inp:
-            reader = csv.DictReader(inp)
-            for row in reader:
-                out_file = self.create_out_file_definition(f'{row["shop_id"]}/items/{row["shop_id"]}/{row["slug"]}'
-                                                           f'/price-history.json')
-                content = json.loads(row['json'])
-                self._write_json_content_to_file(out_file, content)
-            self.zip_and_clean_folders(self.files_out_path)
+        logging.info("Writing json content.")
+        for row in self.read_csv_file(table.full_path):
+            out_file = self.create_out_file_definition(f'{row["shop_id"]}/items/{row["shop_id"]}/{row["slug"]}'
+                                                       f'/price-history.json')
+            content = json.loads(row['json'])
+            self._write_json_content_to_file(out_file, content)
+        logging.info("Packing folders into zip file.")
+        self.zip_and_clean_folders(self.files_out_path)
+        logging.info("Uploading files.")
         self._send_data(table)
 
     def _generate_metadata(self, table: TableDefinition):
@@ -178,6 +179,13 @@ class Component(ComponentBase):
 
         # DELETE OUTPUT FOLDER
         self.output_folder_cleanup()
+
+    @staticmethod
+    def read_csv_file(file_path):
+        with open(file_path, 'r', encoding='utf-8') as inp:
+            reader = csv.DictReader(inp)
+            for row in reader:
+                yield row
 
 
 """
