@@ -59,7 +59,7 @@ class Component(ComponentBase):
                          f"aws_bucket: {self.aws_bucket}")
         else:
             self.s3_bucket_dir = "ingest/"
-            self.aws_bucket = "data.hlidacshopu.cz"
+            self.aws_bucket = "ingest.hlidacshopu.cz"
             logging.info(f"Component will use default values for config: s3_bucket_dir: {self.s3_bucket_dir}, "
                          f"aws_bucket: {self.aws_bucket}")
 
