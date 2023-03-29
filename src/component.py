@@ -79,8 +79,8 @@ class Component(ComponentBase):
                                          aws_bucket=self.aws_bucket)
 
         if not self.upload_processor.test_connection_ok():
-            raise UserException("Connection check failed. Connection is not possible or your account does not have "
-                                "READ_ACP rights.")
+            logging.error("Connection check failed. Connection is not possible or your account does not have "
+                          "READ_ACP rights.")
 
         for table in input_tables:
             _format = self.configuration.parameters[KEY_FORMAT]
