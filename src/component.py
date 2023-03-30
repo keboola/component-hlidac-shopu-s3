@@ -85,7 +85,7 @@ class Component(ComponentBase):
                 raise UserException(f"Wrong parameter in data/config_pricehistory.json {_format}. "
                                     "Viable parameters are: pricehistory/metadata")
 
-        # self.output_folder_cleanup()
+        self.output_folder_cleanup()
         logging.info(f"Parsing finished successfully. "
                      f"Component processed {self.upload_processor.sent_files_counter} files.")
 
