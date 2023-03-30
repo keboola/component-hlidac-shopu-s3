@@ -13,7 +13,7 @@ import zipfile
 
 from csv2json.hone_csv2json import Csv2JsonConverter
 from keboola.component.base import ComponentBase
-from keboola.component.dao import TableDefinition, FileDefinition
+from keboola.component.dao import TableDefinition
 from keboola.component.exceptions import UserException
 from uploader.client import S3Writer
 
