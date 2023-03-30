@@ -34,15 +34,6 @@ REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
 
 
 class Component(ComponentBase):
-    """
-        Extends base class for general Python components. Initializes the CommonInterface
-        and performs configuration validation.
-
-        For easier debugging the data folder is picked up by default from `../data` path,
-        relative to working directory.
-
-        If `debug` parameter is present in the `config.json`, the default logger is set to verbose DEBUG mode.
-    """
 
     def __init__(self):
         super().__init__()
@@ -58,12 +49,12 @@ class Component(ComponentBase):
             logging.info(f"Component will use overriden values from config: s3_bucket_dir: {self.s3_bucket_dir}, "
                          f"aws_bucket: {self.aws_bucket}")
         else:
-            self.s3_bucket_dir = "ingest/"
+            self.s3_bucket_dir = ""
             self.aws_bucket = "ingest.hlidacshopu.cz"
             logging.info(f"Component will use default values for config: s3_bucket_dir: {self.s3_bucket_dir}, "
                          f"aws_bucket: {self.aws_bucket}")
 
-        # Access parameters in data/config.json
+        # Access parameters in data/config_pricehistory.json
         if params.get(KEY_FORMAT):
             logging.info(f"Format setting is: {params.get(KEY_FORMAT)}")
 
@@ -91,9 +82,10 @@ class Component(ComponentBase):
             elif _format == 'metadata':
                 self._generate_metadata(table)
             else:
-                raise UserException(f"Wrong parameter in data/config.json {_format}. "
+                raise UserException(f"Wrong parameter in data/config_pricehistory.json {_format}. "
                                     "Viable parameters are: pricehistory/metadata")
 
+        # self.output_folder_cleanup()
         logging.info(f"Parsing finished successfully. "
                      f"Component processed {self.upload_processor.sent_files_counter} files.")
 
@@ -119,14 +111,27 @@ class Component(ComponentBase):
                 os.remove(path)
 
     @staticmethod
-    def zip_and_clean_folders(target_folder):
+    def zip_and_clean_folders(target_folder, suffix=""):
         for folder_name in os.listdir(target_folder):
             folder_path = os.path.join(target_folder, folder_name)
             if os.path.isdir(folder_path):
-                zip_filename = os.path.join(target_folder, f'{folder_name}.zip')
+                suffix = f"_{suffix}" if suffix else ""
+                zip_filename = os.path.join(target_folder, f'{folder_name}{suffix}.zip')
 
-                # Call the zip utility to create the archive
-                subprocess.run(["zip", "-r", "-q", zip_filename, folder_name], cwd=target_folder, check=True)
+                abs_zip_filename = os.path.abspath(zip_filename)
+                abs_folder_path = os.path.abspath(folder_path)
+
+                # Store the current working directory
+                original_cwd = os.getcwd()
+
+                # Change directory to the folder to be zipped
+                os.chdir(abs_folder_path)
+
+                # Call the zip utility to create the archive without the top-level folder
+                subprocess.run(["zip", "-r", "-q", abs_zip_filename, "."], check=True)
+
+                # Change directory back to the original working directory
+                os.chdir(original_cwd)
 
                 shutil.rmtree(folder_path)
 
@@ -146,7 +151,7 @@ class Component(ComponentBase):
             content = json.loads(row['json'])
             self._write_json_content_to_file(out_file, content)
         logging.info("Packing folders into zip file.")
-        self.zip_and_clean_folders(self.files_out_path)
+        self.zip_and_clean_folders(self.files_out_path, "pricehistory")
         logging.info("Uploading files.")
         self._send_data(table)
 
@@ -162,7 +167,7 @@ class Component(ComponentBase):
                     row.pop(c, None)
                 content = self._generate_metadata_content(list(row.keys()), list(row.values()))
                 self._write_json_content_to_file(out_file, content[0])
-            self.zip_and_clean_folders(self.files_out_path)
+            self.zip_and_clean_folders(self.files_out_path, "metadata")
         self._send_data(table)
 
     def _generate_metadata_content(self, columns, row: List[str]):
@@ -180,9 +185,6 @@ class Component(ComponentBase):
             self.s3_bucket_dir)
         # SEND FILES TO TARGET DIR IN S3
         self.upload_processor.process_upload(self.local_paths, self.target_paths)
-
-        # DELETE OUTPUT FOLDER
-        self.output_folder_cleanup()
 
     @staticmethod
     def read_csv_file(file_path):
