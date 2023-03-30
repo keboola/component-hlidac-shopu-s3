@@ -153,16 +153,35 @@ class Component(ComponentBase):
     def _generate_metadata(self, table: TableDefinition):
         expected_columns = ['slug', 'shop_id']
         self._validate_expected_columns('metadata', table, expected_columns)
+
+        # Create a dictionary to store the zip files by shop_id
+        zip_files = {}
+
+        logging.info("Writing metadata json content.")
         with open(table.full_path, 'r') as inp:
             reader = csv.DictReader(inp)
             for row in reader:
-                out_file = self.create_out_file_definition(f'{row["shop_id"]}/items/{row["shop_id"]}/{row["slug"]}'
-                                                           f'/meta.json')
+                shop_id = row["shop_id"]
+
+                if shop_id not in zip_files:
+                    # Create the zip file with the desired filename
+                    suffix = "_metadata"
+                    zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
+                    zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+
+                # Remove the top-level folder by excluding the `{row["shop_id"]}` part
+                file_path = f'items/{row["shop_id"]}/{row["slug"]}/meta.json'
                 for c in expected_columns:
                     row.pop(c, None)
                 content = self._generate_metadata_content(list(row.keys()), list(row.values()))
-                self._write_json_content_to_file(out_file, content[0])
-            self.zip_and_clean_folders(self.files_out_path, "metadata")
+
+                self._write_json_content_to_zip(zip_files[shop_id], file_path, content[0])
+
+        # Close the zip files
+        for zip_file in zip_files.values():
+            zip_file.close()
+
+        logging.info("Uploading files.")
         self._send_data(table)
 
     def _generate_metadata_content(self, columns, row: List[str]):
