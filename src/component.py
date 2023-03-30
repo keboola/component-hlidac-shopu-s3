@@ -10,6 +10,8 @@ from typing import List
 import os
 import shutil
 import subprocess
+import io
+import zipfile
 
 from csv2json.hone_csv2json import Csv2JsonConverter
 from keboola.component.base import ComponentBase
@@ -111,47 +113,42 @@ class Component(ComponentBase):
                 os.remove(path)
 
     @staticmethod
-    def zip_and_clean_folders(target_folder, suffix=""):
-        for folder_name in os.listdir(target_folder):
-            folder_path = os.path.join(target_folder, folder_name)
-            if os.path.isdir(folder_path):
-                suffix = f"_{suffix}" if suffix else ""
-                zip_filename = os.path.join(target_folder, f'{folder_name}{suffix}.zip')
+    def _write_json_content_to_zip(zip_file, file_path, content):
+        with io.BytesIO() as file_buffer:
+            # Write JSON content to the in-memory file buffer
+            json_str = json.dumps(content, ensure_ascii=False)
+            file_buffer.write(json_str.encode('utf-8'))
+            file_buffer.seek(0)
 
-                abs_zip_filename = os.path.abspath(zip_filename)
-                abs_folder_path = os.path.abspath(folder_path)
-
-                # Store the current working directory
-                original_cwd = os.getcwd()
-
-                # Change directory to the folder to be zipped
-                os.chdir(abs_folder_path)
-
-                # Call the zip utility to create the archive without the top-level folder
-                subprocess.run(["zip", "-r", "-q", abs_zip_filename, "."], check=True)
-
-                # Change directory back to the original working directory
-                os.chdir(original_cwd)
-
-                shutil.rmtree(folder_path)
-
-    @staticmethod
-    def _write_json_content_to_file(file: FileDefinition, content: dict):
-        Path(file.full_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(file.full_path, 'w+', encoding='utf-8') as out:
-            json.dump(content, out)
+            # Add the in-memory file to the zip file
+            zip_file.writestr(file_path, file_buffer.getvalue())
 
     def _generate_price_history(self, table: TableDefinition):
         expected_columns = ['shop_id', 'slug', 'json']
         self._validate_expected_columns('pricehistory', table, expected_columns)
+
+        # Create a dictionary to store the zip files by shop_id
+        zip_files = {}
+
         logging.info("Writing json content.")
         for row in self.read_csv_file(table.full_path):
-            out_file = self.create_out_file_definition(f'{row["shop_id"]}/items/{row["shop_id"]}/{row["slug"]}'
-                                                       f'/price-history.json')
+            shop_id = row["shop_id"]
+
+            if shop_id not in zip_files:
+                # Create the zip file with the desired filename
+                suffix = "_pricehistory"
+                zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
+                zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+
+            # Remove the top-level folder by excluding the `{row["shop_id"]}` part
+            file_path = f'items/{row["shop_id"]}/{row["slug"]}/price-history.json'
             content = json.loads(row['json'])
-            self._write_json_content_to_file(out_file, content)
-        logging.info("Packing folders into zip file.")
-        self.zip_and_clean_folders(self.files_out_path, "pricehistory")
+            self._write_json_content_to_zip(zip_files[shop_id], file_path, content)
+
+        # Close the zip files
+        for zip_file in zip_files.values():
+            zip_file.close()
+
         logging.info("Uploading files.")
         self._send_data(table)
 
