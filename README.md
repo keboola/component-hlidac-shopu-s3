@@ -2,7 +2,7 @@ S3 Writer (Hlidac Shopu)
 =============
 
 Ze vstupni tabulky / tabulek vygeneruje json soubory `$shop.tld$/$slug$/price-history.json`
-nebo `$shop.tld$/$slug$/metadata.json` a následně je po dávkách odešle do AWS S3.
+nebo `$shop.tld$/$slug$/metadata.json`, zabalí je do .zip archivu, a následně je odešle do AWS S3.
 
 
 [TOC]
@@ -19,10 +19,8 @@ Accepts following parameters:
 - Input file format `format` (values `metadata` or `pricehistory`)
 - Target AWS bucket `aws_bucket`
 - AWS directory name `aws_directory` (only if needed)
-- Number of threads `workers` (sets the number of threads to be used, cpu bound)
-- Batch (chunk) size `chunksize`
 
-Kazda vsuptni tabulka musi obsahovat sloupce `shop_id` a `slug`.
+Kazda vstupni tabulka musi obsahovat sloupce `shop_id` a `slug`.
 
 ### Price History
 
@@ -40,9 +38,7 @@ Kazda vsuptni tabulka musi obsahovat sloupce `shop_id` a `slug`.
     "aws_access_key_id": "XXXXXXXXXXXXXXXXXXXX",
     "#aws_secret_access_key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "aws_bucket": "keboola-test",
-    "aws_directory": "s3_test/",
-    "workers": 64,
-    "chunksize": 5000
+    "aws_directory": "s3_test/ingest/"
   },
   "action":"run",
   "authorization": {}
@@ -70,9 +66,7 @@ JSON string ve sloupci `json` se ulozi podle nasledujici masky:
     "aws_access_key_id": "XXXXXXXXXXXXXXXXXXXX",
     "#aws_secret_access_key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "aws_bucket": "keboola-test",
-    "aws_directory": "s3_test/",
-    "workers": 64,
-    "chunksize": 5000
+    "aws_directory": "s3_test/ingest/"
   },
   "action":"run",
   "authorization": {}

@@ -1,82 +1,80 @@
 {
-   "type":"object",
-   "title":"writer configuration",
-   "required":[
-      "format",
-      "aws_access_key_id",
-      "#aws_secret_access_key",
-      "aws_bucket"
+   "type": "object",
+   "title": "writer configuration",
+   "required": [
+     "format",
+     "aws_access_key_id",
+     "#aws_secret_access_key",
+     "aws_bucket"
    ],
-   "properties":{
-      "aws_access_key_id":{
-         "type":"string",
-         "title":"AWS access key ID",
-         "description":"Make sure that this AWS Access Key ID has correct permissions.",
-         "propertyOrder":1
-      },
-      "#aws_secret_access_key":{
-         "type":"string",
-         "title":"AWS secret access key",
-         "description":"The AWS Secret Access Key will be encrypted.",
-         "propertyOrder":2
-      },
-      "format":{
-         "type":"string",
-         "enum":[
-            "pricehistory",
-            "metadata"
-         ],
-         "title":"Input file format",
-         "propertyOrder":5
-      },
-      "aws_bucket":{
-         "type":"string",
-         "title":"Target AWS bucket",
-         "description":"Name of the target AWS S3 bucket.",
-         "propertyOrder":3
-      },
-      "aws_directory":{
-         "type":"string",
-         "title":"AWS directory name to store the files to, if needed.",
-         "description":"If you want to store files in `files` subfolder, enter `files/` If you want to store files to AWS bucket root directory, leave empty.",
-         "propertyOrder":4
-      },
-      "field_datatypes":{
-         "type":"array",
-         "format":"table",
-         "title":"Output columns mapping",
-         "description": "Only applied if Input file format is set to metadata.",
-         "uniqueItems":true,
-         "items":{
-            "type":"object",
-            "title":"item",
-            "properties":{
-               "column":{
-                  "type":"string"
-               },
-               "type":{
-                  "type":"string"
-               }
-            }
-         },
-         "options":{
-            "dependencies":{
-               "format":"metadata"
-            }
-         },
-         "propertyOrder":5
-      },
-      "workers":{
-         "type":"integer",
-         "title":"Number of threads used to upload files to S3.",
-         "default":64,
-         "propertyOrder":6
-      },
-      "chunksize":{
-         "type":"integer",
-         "title":"Number of files to process in a single batch.",
-         "default":5000,
-         "propertyOrder":7
-      }
+   "properties": {
+     "aws_access_key_id": {
+       "type": "string",
+       "title": "AWS access key ID",
+       "description": "Make sure that this AWS Access Key ID has correct permissions.",
+       "propertyOrder": 1
+     },
+     "#aws_secret_access_key": {
+       "type": "string",
+       "title": "AWS secret access key",
+       "description": "The AWS Secret Access Key will be encrypted.",
+       "propertyOrder": 2
+     },
+     "format": {
+       "type": "string",
+       "enum": [
+         "pricehistory",
+         "metadata"
+       ],
+       "title": "Input file format",
+       "propertyOrder": 5
+     },
+     "aws_bucket": {
+       "type": "string",
+       "title": "Target AWS bucket",
+       "description": "Name of the target AWS S3 bucket.",
+       "default": "ingest.hlidacshopu.cz",
+       "propertyOrder": 3
+     },
+     "aws_directory": {
+       "type": "string",
+       "title": "AWS directory name to store the files to, if needed.",
+       "description": "If you want to store files in `files` subfolder, enter `files/` If you want to store files to AWS bucket root directory, leave empty.",
+       "default": "ingest/",
+       "propertyOrder": 4
+     },
+     "field_datatypes": {
+       "type": "array",
+       "format": "table",
+       "title": "Output columns mapping",
+       "description": "Only applied if Input file format is set to metadata.",
+       "uniqueItems": true,
+       "items": {
+         "type": "object",
+         "title": "item",
+         "properties": {
+           "column": {
+             "type": "string"
+           },
+           "type": {
+             "type": "string"
+           }
+         }
+       },
+       "options": {
+         "dependencies": {
+           "format": "metadata"
+         }
+       },
+       "propertyOrder": 6
+     },
+     "override_default_values": {
+       "type": "boolean",
+       "format": "checkbox",
+       "title": "Override default values",
+       "description": "If set to false, component uses hardcoded variables for aws_bucket and aws_directory.",
+       "default": false,
+       "propertyOrder": 7
+     }
    }
-}
+ }
