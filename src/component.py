@@ -25,6 +25,9 @@ AWS_ACCESS_KEY_ID = 'aws_access_key_id'
 AWS_BUCKET = "aws_bucket"
 S3_BUCKET_DIR = "aws_directory"
 
+MAX_FILES_PER_ZIP = 200_000  # Maximum number of files per zip file
+
+
 # list of mandatory parameters => if some is missing,
 # component will fail with readable message on initialization.
 REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
@@ -129,6 +132,96 @@ class Component(ComponentBase):
         zip_files = {}
 
         logging.info("Writing json content.")
+        file_count = 0
+        zip_nr_suffix = 1
+        for row in self.read_csv_file(table.full_path):
+            shop_id = row["shop_id"]
+
+            if shop_id not in zip_files:
+                # Define the suffix for the zip file
+                suffix = "_pricehistory_1"
+                zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
+                zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+                file_count = 0
+
+            # Remove the top-level folder by excluding the `{row["shop_id"]}` part
+            file_path = f'items/{row["shop_id"]}/{row["slug"]}/price-history.json'
+            content = json.loads(row['json'])
+            self._write_json_content_to_zip(zip_files[shop_id], file_path, content)
+
+            file_count += 1
+            if file_count >= MAX_FILES_PER_ZIP:
+                # Close the current zip file and create a new one
+                zip_files[shop_id].close()
+                suffix = f"_pricehistory_{zip_nr_suffix}"
+                zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
+                zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+                file_count = 0
+                zip_nr_suffix += 1
+
+        # Close the zip files
+        for zip_file in zip_files.values():
+            zip_file.close()
+
+        logging.info("Uploading files.")
+        self._send_data(table)
+
+    def _generate_metadata(self, table: TableDefinition):
+        expected_columns = ['slug', 'shop_id']
+        self._validate_expected_columns('metadata', table, expected_columns)
+
+        # Create a dictionary to store the zip files by shop_id
+        zip_files = {}
+
+        logging.info("Writing metadata json content.")
+        file_count = 0
+        zip_nr_suffix = 1
+        with open(table.full_path, 'r') as inp:
+            reader = csv.DictReader(inp)
+            for row in reader:
+                shop_id = row["shop_id"]
+
+                if shop_id not in zip_files:
+                    # Define the suffix for the zip file
+                    suffix = "_metadata_1"
+                    zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
+                    zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+                    file_count = 0
+
+                # Remove the top-level folder by excluding the `{row["shop_id"]}` part
+                file_path = f'items/{row["shop_id"]}/{row["slug"]}/meta.json'
+                for c in expected_columns:
+                    row.pop(c, None)
+                content = self._generate_metadata_content(list(row.keys()), list(row.values()))
+
+                self._write_json_content_to_zip(zip_files[shop_id], file_path, content[0])
+
+                file_count += 1
+                if file_count >= MAX_FILES_PER_ZIP:
+                    # Close the current zip file and create a new one
+                    zip_files[shop_id].close()
+                    suffix = f"_metadata_{zip_nr_suffix}"
+                    zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
+                    zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+                    file_count = 0
+                    zip_nr_suffix += 1
+
+        # Close the zip files
+        for zip_file in zip_files.values():
+            zip_file.close()
+
+        logging.info("Uploading files.")
+        self._send_data(table)
+
+    def __generate_price_history(self, table: TableDefinition):
+        expected_columns = ['shop_id', 'slug', 'json']
+        self._validate_expected_columns('pricehistory', table, expected_columns)
+
+        # Create a dictionary to store the zip files by shop_id
+        zip_files = {}
+        saved_files = 0
+
+        logging.info("Writing json content.")
         for row in self.read_csv_file(table.full_path):
             shop_id = row["shop_id"]
 
@@ -142,15 +235,17 @@ class Component(ComponentBase):
             file_path = f'items/{row["shop_id"]}/{row["slug"]}/price-history.json'
             content = json.loads(row['json'])
             self._write_json_content_to_zip(zip_files[shop_id], file_path, content)
+            saved_files += 1
 
         # Close the zip files
         for zip_file in zip_files.values():
             zip_file.close()
 
+        logging.info(f"Saved {saved_files} files.")
         logging.info("Uploading files.")
         self._send_data(table)
 
-    def _generate_metadata(self, table: TableDefinition):
+    def __generate_metadata(self, table: TableDefinition):
         expected_columns = ['slug', 'shop_id']
         self._validate_expected_columns('metadata', table, expected_columns)
 
