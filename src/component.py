@@ -36,6 +36,51 @@ REQUIRED_PARAMETERS = [AWS_SECRET_ACCESS_KEY,
                        KEY_FORMAT]
 
 
+class ShopZipWriter:
+    """
+    Writes items into per-shop zip files `{shop_id}_{kind}_{n}.zip`,
+    starting a new numbered zip after every MAX_FILES_PER_ZIP items of a shop.
+    """
+
+    def __init__(self, out_path: str, kind: str, max_files_per_zip: int = MAX_FILES_PER_ZIP):
+        self.out_path = out_path
+        self.kind = kind
+        self.max_files_per_zip = max_files_per_zip
+        self._zips = {}
+        self._counts = {}
+        self._parts = {}
+
+    def get_zip(self, shop_id: str) -> zipfile.ZipFile:
+        if shop_id not in self._zips:
+            self._open_next(shop_id)
+        elif self._counts[shop_id] >= self.max_files_per_zip:
+            self._close(shop_id)
+            self._open_next(shop_id)
+        self._counts[shop_id] += 1
+        return self._zips[shop_id]
+
+    def _open_next(self, shop_id: str):
+        self._parts[shop_id] = self._parts.get(shop_id, 0) + 1
+        zip_filename = os.path.join(self.out_path, f'{shop_id}_{self.kind}_{self._parts[shop_id]}.zip')
+        self._zips[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+        self._counts[shop_id] = 0
+
+    def _close(self, shop_id: str):
+        zip_file = self._zips.pop(shop_id)
+        zip_file.close()
+        logging.info(f"Saved {self._counts[shop_id]} files to {os.path.basename(zip_file.filename)}.")
+
+    def close(self):
+        for shop_id in list(self._zips):
+            self._close(shop_id)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
 class Component(ComponentBase):
 
     def __init__(self):
@@ -128,40 +173,13 @@ class Component(ComponentBase):
         expected_columns = ['shop_id', 'slug', 'json']
         self._validate_expected_columns('pricehistory', table, expected_columns)
 
-        # Create a dictionary to store the zip files by shop_id
-        zip_files = {}
-
         logging.info("Writing json content.")
-        file_count = 0
-        zip_nr_suffix = 1
-        for row in self.read_csv_file(table.full_path):
-            shop_id = row["shop_id"]
-
-            if shop_id not in zip_files:
-                # Define the suffix for the zip file
-                suffix = "_pricehistory_1"
-                zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
-                zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
-                file_count = 0
-
-            # Remove the top-level folder by excluding the `{row["shop_id"]}` part
-            file_path = f'items/{row["shop_id"]}/{row["slug"]}/price-history.json'
-            content = json.loads(row['json'])
-            self._write_json_content_to_zip(zip_files[shop_id], file_path, content)
-
-            file_count += 1
-            if file_count >= MAX_FILES_PER_ZIP:
-                # Close the current zip file and create a new one
-                zip_files[shop_id].close()
-                suffix = f"_pricehistory_{zip_nr_suffix}"
-                zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
-                zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
-                file_count = 0
-                zip_nr_suffix += 1
-
-        # Close the zip files
-        for zip_file in zip_files.values():
-            zip_file.close()
+        with ShopZipWriter(self.files_out_path, 'pricehistory') as zip_writer:
+            for row in self.read_csv_file(table.full_path):
+                # Remove the top-level folder by excluding the `{row["shop_id"]}` part
+                file_path = f'items/{row["shop_id"]}/{row["slug"]}/price-history.json'
+                content = json.loads(row['json'])
+                self._write_json_content_to_zip(zip_writer.get_zip(row["shop_id"]), file_path, content)
 
         logging.info("Uploading files.")
         self._send_data(table)
@@ -170,45 +188,18 @@ class Component(ComponentBase):
         expected_columns = ['slug', 'shop_id']
         self._validate_expected_columns('metadata', table, expected_columns)
 
-        # Create a dictionary to store the zip files by shop_id
-        zip_files = {}
-
         logging.info("Writing metadata json content.")
-        file_count = 0
-        zip_nr_suffix = 1
-        with open(table.full_path, 'r') as inp:
+        with open(table.full_path, 'r') as inp, ShopZipWriter(self.files_out_path, 'metadata') as zip_writer:
             reader = csv.DictReader(inp)
             for row in reader:
                 shop_id = row["shop_id"]
-
-                if shop_id not in zip_files:
-                    # Define the suffix for the zip file
-                    suffix = "_metadata_1"
-                    zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
-                    zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
-                    file_count = 0
-
                 # Remove the top-level folder by excluding the `{row["shop_id"]}` part
                 file_path = f'items/{row["shop_id"]}/{row["slug"]}/meta.json'
                 for c in expected_columns:
                     row.pop(c, None)
                 content = self._generate_metadata_content(list(row.keys()), list(row.values()))
 
-                self._write_json_content_to_zip(zip_files[shop_id], file_path, content[0])
-
-                file_count += 1
-                if file_count >= MAX_FILES_PER_ZIP:
-                    # Close the current zip file and create a new one
-                    zip_files[shop_id].close()
-                    suffix = f"_metadata_{zip_nr_suffix}"
-                    zip_filename = os.path.join(self.files_out_path, f'{shop_id}{suffix}.zip')
-                    zip_files[shop_id] = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
-                    file_count = 0
-                    zip_nr_suffix += 1
-
-        # Close the zip files
-        for zip_file in zip_files.values():
-            zip_file.close()
+                self._write_json_content_to_zip(zip_writer.get_zip(shop_id), file_path, content[0])
 
         logging.info("Uploading files.")
         self._send_data(table)
